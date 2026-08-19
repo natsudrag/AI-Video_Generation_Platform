@@ -1,17 +1,19 @@
 # AI Video Generation Platform
 
-A fresh AI video and image generation platform built for a premium creator
-experience. The first screen is the working studio surface: prompt controls,
-reference upload flow, model and quality tiers, preview state, library, credit
-packs, Shopify checkout readiness, and launch checklist.
+MotionForge AI is a premium AI video and image generation platform with a
+creator-facing studio, Stripe-powered credit packs, provider-routed generation
+jobs, upload handling, and a customer credit ledger.
 
 ## Stack
 
-- Vinext / Next app router on Cloudflare Workers
+- Vinext / Next app router
 - React 19
-- Tailwind CSS 4 with custom app styling
-- Shopify Storefront cart route for credit-pack checkout
-- Shopify webhook verification scaffold for order completion events
+- Custom cinematic CSS system
+- Stripe Checkout for credit-pack purchases
+- Server-side credit ledger, payment records, upload records, and generation jobs
+- Provider adapter boundary for Vercel AI Gateway, Runway, Kling, OpenAI,
+  Replicate, and Seedance
+- Railway-ready runtime configuration
 
 ## Quick Start
 
@@ -22,47 +24,61 @@ npm run build
 npm test
 ```
 
-## Shopify Setup
+## Environment
 
-Copy `.env.example` to `.env.local`, then fill in the store values:
+Copy `.env.example` to `.env.local` for local development, then fill in the
+values needed for the capability being tested.
 
 ```bash
-SHOPIFY_STORE_DOMAIN=your-store.myshopify.com
-SHOPIFY_STOREFRONT_ACCESS_TOKEN=
-SHOPIFY_STOREFRONT_PRIVATE_TOKEN=
-SHOPIFY_WEBHOOK_SECRET=
-SHOPIFY_CREDIT_VARIANT_STARTER=gid://shopify/ProductVariant/...
-SHOPIFY_CREDIT_VARIANT_CREATOR=gid://shopify/ProductVariant/...
-SHOPIFY_CREDIT_VARIANT_STUDIO=gid://shopify/ProductVariant/...
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=
+
+AI_GATEWAY_API_KEY=
+RUNWAY_API_KEY=
+KLING_API_KEY=
+OPENAI_API_KEY=
+REPLICATE_API_TOKEN=
+SEEDANCE_API_KEY=
+
+MOTIONFORGE_STARTING_CREDITS=24
+MOTIONFORGE_MOCK_GENERATION=false
+MOTIONFORGE_DATA_DIR=.data
 ```
 
-Use public or private Storefront API access for cart creation. Private tokens
-must stay server-side. The UI posts credit-pack purchases to
-`/api/shopify/cart`, which creates a Shopify cart and returns the checkout URL
-when the environment is configured.
+## Backend Flow
 
-For purchase fulfillment, point Shopify order webhooks at:
+1. A visitor receives an anonymous `mf_customer` session cookie.
+2. `/api/me` creates the account if needed and returns the current credit
+   balance, ledger entries, and recent generation jobs.
+3. `/api/stripe/checkout` creates a Stripe Checkout Session for a selected
+   credit pack.
+4. `/api/stripe/webhooks` verifies Stripe signatures and credits the customer
+   ledger idempotently when checkout completes.
+5. `/api/assets/upload` stores an image or video source and records ownership.
+6. `/api/generations/quote` prices a job by model, mode, duration, and quality.
+7. `/api/generations` validates the asset, provider readiness, and balance,
+   reserves credits, creates a job, and dispatches through the provider adapter.
 
-```text
-/api/shopify/webhooks/orders
-```
+## Provider Integration
 
-The webhook endpoint verifies `X-Shopify-Hmac-Sha256` against the raw request
-body before accepting the payload. The next production step is adding a durable
-credit ledger so verified paid orders increment user balances idempotently.
+The provider adapter is intentionally env-driven. If a model provider key is
+missing, generation returns a setup-required response and does not reserve
+credits. Set `MOTIONFORGE_MOCK_GENERATION=true` to exercise the full UI and
+ledger path before live vendor keys are available.
 
-## AI Provider Setup
-
-The UI currently runs in mock mode while the product and commerce shell come
-together. The env template includes provider slots for Replicate, fal, Runware,
-and OpenAI so free or lower-cost model routing can be added behind one provider
-adapter without reshaping the interface.
+The next production step after vendor keys are available is replacing each
+adapter placeholder with the provider-specific submit/status/result API calls
+for the exact model endpoints selected.
 
 ## Important Files
 
-- `app/studio-shell.tsx`: creator workspace UI and interaction flow
-- `app/globals.css`: Spotify-inspired transparent visual system and animations
-- `app/lib/shopify.ts`: Shopify config, cart creation, and webhook HMAC helper
-- `app/api/shopify/cart/route.ts`: credit-pack checkout endpoint
-- `app/api/shopify/webhooks/orders/route.ts`: verified order webhook endpoint
-- `.env.example`: Shopify and AI provider configuration template
+- `app/studio-shell.tsx`: creator workspace UI wired to credits, upload,
+  checkout, and generation APIs
+- `app/lib/backend/catalog.ts`: credit packages, model catalog, and pricing math
+- `app/lib/backend/store.ts`: customer, ledger, payment, asset, and job store
+- `app/lib/backend/stripe.ts`: Stripe Checkout and webhook verification
+- `app/lib/backend/providers.ts`: provider readiness and dispatch boundary
+- `app/lib/backend/storage.ts`: local/Railway upload storage path
+- `app/api/*`: public backend routes used by the studio
+- `.env.example`: Stripe, provider, and runtime configuration template

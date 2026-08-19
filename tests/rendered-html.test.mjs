@@ -41,20 +41,49 @@ test("server-renders the premium AI generation studio", async () => {
   assert.doesNotMatch(html, /react-loading-skeleton/);
 });
 
-test("reports Shopify setup requirements until live keys are configured", async () => {
-  const response = await fetchRendered("/api/shopify/cart", {
+test("reports Stripe setup requirements until live keys are configured", async () => {
+  const response = await fetchRendered("/api/stripe/checkout", {
     headers: { accept: "application/json" },
   });
   assert.equal(response.status, 200);
 
   const json = await response.json();
   assert.equal(json.connected, false);
-  assert.ok(json.missing.includes("SHOPIFY_STORE_DOMAIN"));
-  assert.ok(
-    json.missing.includes(
-      "SHOPIFY_STOREFRONT_ACCESS_TOKEN or SHOPIFY_STOREFRONT_PRIVATE_TOKEN",
-    ),
-  );
+  assert.ok(json.missing.includes("STRIPE_SECRET_KEY"));
+  assert.ok(json.missing.includes("STRIPE_WEBHOOK_SECRET"));
+  assert.equal(json.creditPackages.length, 3);
+});
+
+test("exposes model catalog and generation pricing", async () => {
+  const catalogResponse = await fetchRendered("/api/models", {
+    headers: { accept: "application/json" },
+  });
+  assert.equal(catalogResponse.status, 200);
+
+  const catalog = await catalogResponse.json();
+  assert.ok(catalog.models.some((model) => model.id === "veo-3"));
+  assert.ok(catalog.models.every((model) => "providerReady" in model));
+
+  const quoteResponse = await fetchRendered("/api/generations/quote", {
+    method: "POST",
+    headers: {
+      accept: "application/json",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      mode: "image-to-video",
+      modelId: "veo-3",
+      durationSeconds: 10,
+      quality: "pro",
+      aspectRatio: "16:9",
+    }),
+  });
+  assert.equal(quoteResponse.status, 200);
+
+  const quote = await quoteResponse.json();
+  assert.equal(quote.quote.model.id, "veo-3");
+  assert.ok(quote.quote.creditCost > 0);
+  assert.ok(quote.quote.estimatedGrossMarginCents > 0);
 });
 
 test("keeps starter preview files removed from the product build", async () => {
@@ -64,6 +93,7 @@ test("keeps starter preview files removed from the product build", async () => {
   ]);
 
   assert.match(page, /<StudioShell \/>/);
+  assert.doesNotMatch(page, /legacy checkout/i);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
   await assert.rejects(
     access(new URL("app/_sites-preview/SkeletonPreview.tsx", templateRoot)),

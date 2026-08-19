@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 
 const siteTitle = "MotionForge AI — AI Video Generation Platform";
 const siteDescription =
-  "Create cinematic AI video with a media-first studio, premium model selection, and Shopify-ready credits.";
+  "Create cinematic AI video with a media-first studio, premium model selection, Stripe credits, and provider-routed generation.";
 
 export async function generateMetadata(): Promise<Metadata> {
   const requestHeaders = await headers();

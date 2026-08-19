@@ -1,11 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 
 type ModelOption = {
+  id: string;
   name: string;
   note: string;
   cost: number;
+  provider?: string;
+  providerReady?: boolean;
+  missingProviderKeys?: string[];
 };
 
 type Film = {
@@ -17,13 +21,92 @@ type Film = {
 
 type StudioMode = "Image to video" | "Text to video" | "Video extend";
 type PackageId = "starter" | "creator" | "studio";
+type QualityChoice = "Fast" | "Pro" | "Ultra";
 
-const models: ModelOption[] = [
-  { name: "Kling 2.1", note: "Expressive motion", cost: 30 },
-  { name: "Veo 3", note: "Photoreal scenes", cost: 46 },
-  { name: "Runway Gen-4", note: "Creative direction", cost: 35 },
-  { name: "Sora 2", note: "Cinematic worlds", cost: 42 },
-  { name: "Seedance", note: "Fast iteration", cost: 24 },
+type CreditPack = {
+  id: PackageId;
+  name: string;
+  credits: number;
+  amountCents: number;
+  description: string;
+};
+
+type UploadedAsset = {
+  id: string;
+  kind: "image" | "video";
+  fileName: string;
+  publicUrl?: string;
+};
+
+type GenerationJob = {
+  id: string;
+  status: string;
+  provider?: string;
+  providerJobId?: string;
+  resultUrl?: string;
+  error?: string;
+};
+
+const defaultModels: ModelOption[] = [
+  {
+    id: "kling-2-1",
+    name: "Kling 2.1",
+    note: "Expressive motion",
+    cost: 30,
+    provider: "kling",
+  },
+  {
+    id: "veo-3",
+    name: "Veo 3",
+    note: "Photoreal scenes",
+    cost: 46,
+    provider: "vercel-ai-gateway",
+  },
+  {
+    id: "runway-gen-4",
+    name: "Runway Gen-4",
+    note: "Creative direction",
+    cost: 35,
+    provider: "runway",
+  },
+  {
+    id: "sora-2",
+    name: "Sora 2",
+    note: "Cinematic worlds",
+    cost: 42,
+    provider: "openai",
+  },
+  {
+    id: "seedance",
+    name: "Seedance",
+    note: "Fast iteration",
+    cost: 24,
+    provider: "seedance",
+  },
+];
+
+const defaultPacks: CreditPack[] = [
+  {
+    id: "starter",
+    name: "Starter",
+    credits: 120,
+    amountCents: 1900,
+    description: "Explore the studio and make your first ideas move.",
+  },
+  {
+    id: "creator",
+    name: "Creator",
+    credits: 420,
+    amountCents: 4900,
+    description: "For creators producing polished content every week.",
+  },
+  {
+    id: "studio",
+    name: "Studio",
+    credits: 1100,
+    amountCents: 11900,
+    description: "Higher-volume generation for teams and client work.",
+  },
 ];
 
 const films: Film[] = [
@@ -89,27 +172,182 @@ function Logo() {
   );
 }
 
+function modeToApiMode(mode: StudioMode): string {
+  if (mode === "Image to video") return "image-to-video";
+  if (mode === "Text to video") return "text-to-video";
+
+  return "video-extend";
+}
+
+function parseDurationSeconds(duration: string): number {
+  const parsed = Number.parseInt(duration.replace(/\D/g, ""), 10);
+
+  return Number.isFinite(parsed) ? parsed : 5;
+}
+
+function formatMoney(amountCents: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: amountCents % 100 === 0 ? 0 : 2,
+  }).format(amountCents / 100);
+}
+
+function jobStatusMessage(job: GenerationJob): string {
+  if (job.status === "completed") {
+    return "Generation completed.";
+  }
+
+  if (job.status === "awaiting_provider") {
+    return job.error ?? "Generation is queued with the provider.";
+  }
+
+  if (job.status === "processing" || job.status === "queued") {
+    return "Generation is being processed.";
+  }
+
+  return job.error ?? "Generation job was created.";
+}
+
 export function StudioShell() {
   const [menu, setMenu] = useState(false);
   const [studioOpen, setStudioOpen] = useState(false);
   const [mode, setMode] = useState<StudioMode>("Image to video");
-  const [model, setModel] = useState<ModelOption>(models[0]);
+  const [models, setModels] = useState<ModelOption[]>(defaultModels);
+  const [creditPacks, setCreditPacks] = useState<CreditPack[]>(defaultPacks);
+  const [model, setModel] = useState<ModelOption>(defaultModels[1] ?? defaultModels[0]);
   const [prompt, setPrompt] = useState(seedPrompt);
   const [ratio, setRatio] = useState("16:9");
   const [duration, setDuration] = useState("5s");
-  const [quality, setQuality] = useState("Pro");
+  const [quality, setQuality] = useState<QualityChoice>("Pro");
   const [generated, setGenerated] = useState(false);
+  const [balance, setBalance] = useState<number | undefined>();
+  const [uploadedAsset, setUploadedAsset] = useState<UploadedAsset | undefined>();
+  const [generationJob, setGenerationJob] = useState<GenerationJob | undefined>();
+  const [quotedCredits, setQuotedCredits] = useState<number | undefined>();
+  const [studioStatus, setStudioStatus] = useState(
+    "Upload a source asset or use a text-only prompt.",
+  );
+  const [generationState, setGenerationState] = useState<
+    "idle" | "uploading" | "generating" | "ready" | "setup" | "payment"
+  >("idle");
   const [checkoutState, setCheckoutState] = useState<
     "idle" | "loading" | "ready" | "setup"
   >("idle");
 
-  const credits = useMemo(
+  const estimatedCredits = useMemo(
     () =>
       model.cost +
       (duration === "10s" ? 12 : 0) +
-      (quality === "Pro" ? 8 : 0),
+      (quality === "Pro" ? 8 : 0) +
+      (quality === "Ultra" ? 22 : 0),
     [duration, model.cost, quality],
   );
+  const credits = quotedCredits ?? estimatedCredits;
+
+  useEffect(() => {
+    let active = true;
+
+    async function hydrateBackendState() {
+      try {
+        const [catalogResponse, accountResponse] = await Promise.all([
+          fetch("/api/models", { headers: { accept: "application/json" } }),
+          fetch("/api/me", { headers: { accept: "application/json" } }),
+        ]);
+
+        if (catalogResponse.ok) {
+          const catalog = (await catalogResponse.json()) as {
+            models?: Array<{
+              id: string;
+              displayName: string;
+              description: string;
+              baseCredits: number;
+              provider: string;
+              providerReady?: boolean;
+              missingProviderKeys?: string[];
+            }>;
+            creditPackages?: CreditPack[];
+          };
+          const nextModels =
+            catalog.models?.map((item) => ({
+              id: item.id,
+              name: item.displayName,
+              note: item.description,
+              cost: item.baseCredits,
+              provider: item.provider,
+              providerReady: item.providerReady,
+              missingProviderKeys: item.missingProviderKeys,
+            })) ?? [];
+
+          if (active && nextModels.length > 0) {
+            setModels(nextModels);
+            setModel((current) =>
+              nextModels.find((item) => item.id === current.id) ?? nextModels[0],
+            );
+          }
+
+          if (active && catalog.creditPackages?.length) {
+            setCreditPacks(catalog.creditPackages);
+          }
+        }
+
+        if (accountResponse.ok) {
+          const account = (await accountResponse.json()) as { balance?: number };
+          if (active && typeof account.balance === "number") {
+            setBalance(account.balance);
+          }
+        }
+      } catch {
+        if (active) {
+          setStudioStatus("Backend is not reachable from this browser session yet.");
+        }
+      }
+    }
+
+    void hydrateBackendState();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    async function refreshQuote() {
+      try {
+        const response = await fetch("/api/generations/quote", {
+          method: "POST",
+          headers: {
+            accept: "application/json",
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            mode: modeToApiMode(mode),
+            modelId: model.id,
+            durationSeconds: parseDurationSeconds(duration),
+            quality: quality.toLowerCase(),
+            aspectRatio: ratio,
+          }),
+        });
+        const data = (await response.json()) as {
+          quote?: { creditCost?: number };
+        };
+
+        if (active && response.ok && typeof data.quote?.creditCost === "number") {
+          setQuotedCredits(data.quote.creditCost);
+        }
+      } catch {
+        if (active) setQuotedCredits(undefined);
+      }
+    }
+
+    void refreshQuote();
+
+    return () => {
+      active = false;
+    };
+  }, [duration, mode, model.id, quality, ratio]);
 
   function setModalBodyState(open: boolean) {
     if (typeof document === "undefined") {
@@ -135,15 +373,10 @@ export function StudioShell() {
   }
 
   async function handleCheckout(packageId: PackageId) {
-    if (packageId === "starter") {
-      openStudio();
-      return;
-    }
-
     setCheckoutState("loading");
 
     try {
-      const response = await fetch("/api/shopify/cart", {
+      const response = await fetch("/api/stripe/checkout", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ packageId }),
@@ -162,6 +395,119 @@ export function StudioShell() {
       setCheckoutState(data.setupRequired ? "setup" : "idle");
     } catch {
       setCheckoutState("setup");
+    }
+  }
+
+  async function handleFileUpload(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) {
+      return;
+    }
+
+    setGenerationState("uploading");
+    setGenerated(false);
+    setGenerationJob(undefined);
+    setStudioStatus(`Uploading ${file.name}…`);
+
+    try {
+      const formData = new FormData();
+      formData.set("file", file);
+      const response = await fetch("/api/assets/upload", {
+        method: "POST",
+        body: formData,
+      });
+      const data = (await response.json()) as {
+        asset?: UploadedAsset;
+        error?: string;
+      };
+
+      if (!response.ok || !data.asset) {
+        throw new Error(data.error ?? "Upload failed.");
+      }
+
+      setUploadedAsset(data.asset);
+      setStudioStatus(`Uploaded ${data.asset.fileName}. Ready to generate.`);
+      setGenerationState("idle");
+    } catch (error) {
+      setStudioStatus(
+        error instanceof Error ? error.message : "Unable to upload this file.",
+      );
+      setGenerationState("idle");
+    }
+  }
+
+  async function handleGenerate() {
+    setGenerationState("generating");
+    setGenerated(false);
+    setGenerationJob(undefined);
+    setStudioStatus("Submitting generation job…");
+
+    try {
+      const response = await fetch("/api/generations", {
+        method: "POST",
+        headers: {
+          accept: "application/json",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          prompt,
+          mode: modeToApiMode(mode),
+          modelId: model.id,
+          durationSeconds: parseDurationSeconds(duration),
+          quality: quality.toLowerCase(),
+          aspectRatio: ratio,
+          inputAssetId: uploadedAsset?.id,
+        }),
+      });
+      const data = (await response.json()) as {
+        job?: GenerationJob;
+        balance?: number;
+        error?: string;
+        providerSetupRequired?: boolean;
+        paymentRequired?: boolean;
+        missing?: string[];
+        creditCost?: number;
+      };
+
+      if (typeof data.balance === "number") {
+        setBalance(data.balance);
+      }
+
+      if (!response.ok || !data.job) {
+        if (data.providerSetupRequired) {
+          setGenerationState("setup");
+          setStudioStatus(
+            `Provider setup required: add ${data.missing?.join(", ") ?? "the provider key"} in Railway.`,
+          );
+          return;
+        }
+
+        if (data.paymentRequired) {
+          setGenerationState("payment");
+          setStudioStatus(
+            `Need ${data.creditCost ?? credits} credits; current balance is ${
+              data.balance ?? balance ?? 0
+            }.`,
+          );
+          return;
+        }
+
+        throw new Error(data.error ?? "Generation failed.");
+      }
+
+      setGenerationJob(data.job);
+      setGenerated(true);
+      setGenerationState("ready");
+      setStudioStatus(jobStatusMessage(data.job));
+    } catch (error) {
+      setGenerationState("idle");
+      setStudioStatus(
+        error instanceof Error
+          ? error.message
+          : "Unable to submit this generation.",
+      );
     }
   }
 
@@ -311,7 +657,7 @@ export function StudioShell() {
               {models.map((item, index) => (
                 <button
                   className="modelTile"
-                  key={item.name}
+                  key={item.id}
                   type="button"
                   onClick={() => {
                     setModel(item);
@@ -422,72 +768,47 @@ export function StudioShell() {
             <span className="eyebrow">Simple pricing</span>
             <h2>Create at your pace.</h2>
             <p>
-              Start free. Upgrade when you want more generations, higher
-              quality, and priority processing.
+              Buy credits through Stripe. Each generation reserves credits
+              based on model, duration, mode, and quality.
             </p>
           </div>
           <div className="priceGrid">
-            <article>
-              <span>Starter</span>
-              <h3>$19</h3>
-              <p>Explore the studio and make your first ideas move.</p>
-              <ul>
-                <li>120 credits</li>
-                <li>Standard queue</li>
-                <li>720p exports</li>
-              </ul>
-              <button
-                type="button"
-                onClick={() => void handleCheckout("starter")}
+            {creditPacks.map((pack) => (
+              <article
+                className={pack.id === "creator" ? "recommended" : ""}
+                key={pack.id}
               >
-                Start creating
-              </button>
-            </article>
-            <article className="recommended">
-              <div className="best">Most popular</div>
-              <span>Creator</span>
-              <h3>
-                $49<small>/pack</small>
-              </h3>
-              <p>For creators producing polished content every week.</p>
-              <ul>
-                <li>420 credits</li>
-                <li>Priority generation</li>
-                <li>1080p and watermark-free</li>
-              </ul>
-              <button
-                type="button"
-                disabled={checkoutState === "loading"}
-                onClick={() => void handleCheckout("creator")}
-              >
-                {checkoutState === "loading" ? "Preparing…" : "Choose Creator"}
-              </button>
-            </article>
-            <article>
-              <span>Studio</span>
-              <h3>
-                $119<small>/pack</small>
-              </h3>
-              <p>Higher-volume generation for teams and client work.</p>
-              <ul>
-                <li>1,100 credits</li>
-                <li>Fastest queue</li>
-                <li>Shared workspace-ready</li>
-              </ul>
-              <button
-                type="button"
-                disabled={checkoutState === "loading"}
-                onClick={() => void handleCheckout("studio")}
-              >
-                {checkoutState === "loading" ? "Preparing…" : "Choose Studio"}
-              </button>
-            </article>
+                {pack.id === "creator" ? (
+                  <div className="best">Most popular</div>
+                ) : null}
+                <span>{pack.name}</span>
+                <h3>
+                  {formatMoney(pack.amountCents)}
+                  <small>/pack</small>
+                </h3>
+                <p>{pack.description}</p>
+                <ul>
+                  <li>{pack.credits.toLocaleString()} credits</li>
+                  <li>Stripe-secured checkout</li>
+                  <li>Model-cost routing ledger</li>
+                </ul>
+                <button
+                  type="button"
+                  disabled={checkoutState === "loading"}
+                  onClick={() => void handleCheckout(pack.id)}
+                >
+                  {checkoutState === "loading"
+                    ? "Preparing…"
+                    : `Buy ${pack.name}`}
+                </button>
+              </article>
+            ))}
           </div>
           {checkoutState === "setup" ? (
             <p className="setupNote" role="status">
-              Shopify checkout is built but not connected yet. Add the store
-              domain, Storefront token, and variant IDs to activate live credit
-              purchases.
+              Stripe checkout is built but not connected yet. Add
+              STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET in Railway to activate
+              live credit purchases.
             </p>
           ) : null}
         </section>
@@ -562,16 +883,19 @@ export function StudioShell() {
                 <label>
                   Model
                   <select
-                    value={model.name}
+                    value={model.id}
                     onChange={(event) => {
                       const selected =
-                        models.find((item) => item.name === event.target.value) ??
+                        models.find((item) => item.id === event.target.value) ??
                         models[0];
                       setModel(selected);
                     }}
                   >
                     {models.map((item) => (
-                      <option key={item.name}>{item.name}</option>
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                        {item.providerReady === false ? " · setup needed" : ""}
+                      </option>
                     ))}
                   </select>
                 </label>
@@ -605,7 +929,7 @@ export function StudioShell() {
                 <label>
                   Quality
                   <div className="toggleRow">
-                    {["Fast", "Pro"].map((item) => (
+                    {(["Fast", "Pro", "Ultra"] as QualityChoice[]).map((item) => (
                       <button
                         className={quality === item ? "selected" : ""}
                         onClick={() => setQuality(item)}
@@ -630,7 +954,11 @@ export function StudioShell() {
                         ▶
                       </button>
                       <div className="generationLabel">
-                        <b>Generation ready</b>
+                        <b>
+                          {generationJob?.status === "awaiting_provider"
+                            ? "Generation queued"
+                            : "Generation ready"}
+                        </b>
                         <span>
                           {model.name} · {duration} · {ratio}
                         </span>
@@ -638,20 +966,40 @@ export function StudioShell() {
                     </>
                   ) : (
                     <div className="dropTarget">
-                      <div>+</div>
+                      <div>{generationState === "uploading" ? "…" : "+"}</div>
                       <b>
                         {mode === "Text to video"
                           ? "Text-only generation ready"
-                          : "Drop your starting image here"}
+                          : uploadedAsset
+                            ? uploadedAsset.fileName
+                            : mode === "Video extend"
+                              ? "Upload the clip to extend"
+                              : "Upload your starting image"}
                       </b>
                       <span>
                         {mode === "Text to video"
                           ? "Describe your scene below to begin."
-                          : "JPG, PNG or WEBP"}
+                          : uploadedAsset
+                            ? `${uploadedAsset.kind} source attached`
+                            : mode === "Video extend"
+                              ? "MP4, WEBM or MOV"
+                              : "JPG, PNG, WEBP or short clip"}
                       </span>
                       {mode !== "Text to video" ? (
-                        <button type="button">Choose image</button>
+                        <label className="uploadButton">
+                          Choose {mode === "Video extend" ? "video" : "image"}
+                          <input
+                            type="file"
+                            accept={
+                              mode === "Video extend"
+                                ? "video/*"
+                                : "image/*,video/*"
+                            }
+                            onChange={(event) => void handleFileUpload(event)}
+                          />
+                        </label>
                       ) : null}
+                      <small>{studioStatus}</small>
                     </div>
                   )}
                 </div>
@@ -665,13 +1013,23 @@ export function StudioShell() {
                     <button className="enhance" type="button">
                       ✦ Enhance
                     </button>
-                    <span>{credits} credits</span>
+                    <span>
+                      {credits} credits ·{" "}
+                      {typeof balance === "number"
+                        ? `${balance} balance`
+                        : "syncing balance"}
+                    </span>
                     <button
                       className="generateBtn"
                       type="button"
-                      onClick={() => setGenerated(true)}
+                      disabled={
+                        generationState === "generating" ||
+                        generationState === "uploading"
+                      }
+                      onClick={() => void handleGenerate()}
                     >
-                      Generate <b>↑</b>
+                      {generationState === "generating" ? "Submitting" : "Generate"}{" "}
+                      <b>↑</b>
                     </button>
                   </div>
                 </div>

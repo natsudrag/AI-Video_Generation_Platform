@@ -145,6 +145,81 @@ const galleryItems = [
   },
 ];
 
+const workflowSteps = [
+  {
+    step: "01",
+    title: "Start from text or reference",
+    body: "Drop in a product shot, portrait, or raw idea and shape it into a controlled generation brief.",
+  },
+  {
+    step: "02",
+    title: "Route to the right model",
+    body: "Choose fast open models for volume, premium motion for hero clips, or studio blend for polished campaigns.",
+  },
+  {
+    step: "03",
+    title: "Estimate credits before render",
+    body: "Duration, quality, and model selection update the credit cost before a job enters the queue.",
+  },
+  {
+    step: "04",
+    title: "Publish, download, or iterate",
+    body: "Review the render timeline, save outputs to the library, then extend or upscale the best versions.",
+  },
+];
+
+const marketplaceItems = [
+  {
+    title: "Image-to-Video",
+    tag: "Reference motion",
+    body: "Animate products, portraits, real estate scenes, and campaign stills without losing the original visual direction.",
+  },
+  {
+    title: "Text-to-Video",
+    tag: "Prompt native",
+    body: "Generate short-form concepts, ad hooks, atmospheric scenes, and creator clips directly from a written brief.",
+  },
+  {
+    title: "Video Extend",
+    tag: "Iteration lane",
+    body: "Continue the best clips into alternate shots, longer loops, or additional motion passes for social campaigns.",
+  },
+  {
+    title: "Image Studio",
+    tag: "Still assets",
+    body: "Create thumbnails, product frames, launch visuals, character looks, and polished stills for every video run.",
+  },
+];
+
+const useCases = [
+  "Product launch videos",
+  "Creator ads and hooks",
+  "Fashion and beauty edits",
+  "Real estate walkthroughs",
+  "Music visualizers",
+  "YouTube thumbnails",
+  "Short-form storyboards",
+  "Brand concept testing",
+];
+
+const faqItems = [
+  {
+    question: "Is this connected to live AI generation yet?",
+    answer:
+      "The frontend and checkout-ready flow are in place. Live rendering requires adding provider keys and wiring the selected model endpoints.",
+  },
+  {
+    question: "How do credits work?",
+    answer:
+      "The UI estimates credits from model, quality, and duration. Shopify checkout is prepared for selling credit packs once store keys and variant IDs are configured.",
+  },
+  {
+    question: "Can it support multiple models?",
+    answer:
+      "Yes. The product layout is built around model routing, with separate lanes for image generation, open video models, premium motion, and studio blend workflows.",
+  },
+];
+
 const seedPrompt =
   "Cinematic fashion portrait, glossy black studio floor, emerald rim light, slow camera push, premium commercial styling";
 
@@ -236,6 +311,10 @@ export function StudioShell() {
             <BadgeDollarSign size={18} />
             Credits
           </a>
+          <a className="nav-item" href="#workflow">
+            <Layers3 size={18} />
+            Workflow
+          </a>
           <a className="nav-item" href="#shopify">
             <ShoppingBag size={18} />
             Shopify
@@ -295,7 +374,8 @@ export function StudioShell() {
             <h1>Generate cinematic content with credit-based AI flows.</h1>
             <p>
               A dark, fluid studio for image-to-video, text-to-video, image
-              generation, quality upgrades, and Shopify-powered token packs.
+              generation, video extension, quality upgrades, and
+              Shopify-powered token packs.
             </p>
           </div>
           <div className="hero-controls glass-panel" aria-label="Generation modes">
@@ -591,6 +671,93 @@ export function StudioShell() {
               </li>
             </ul>
           </section>
+        </section>
+
+        <section className="strategy-strip glass-panel" id="workflow">
+          <div className="section-heading">
+            <p className="eyebrow">Workflow</p>
+            <h2>From first prompt to polished asset in one guided flow.</h2>
+            <p>
+              The experience is structured for fast conversion: create
+              immediately, understand the credit cost, preview progress, and
+              move successful renders into the library.
+            </p>
+          </div>
+          <div className="workflow-grid">
+            {workflowSteps.map((item) => (
+              <article className="workflow-card" key={item.step}>
+                <span>{item.step}</span>
+                <h3>{item.title}</h3>
+                <p>{item.body}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="marketplace-panel glass-panel" id="models">
+          <div className="section-heading">
+            <p className="eyebrow">Model Marketplace</p>
+            <h2>Position the platform as a multi-model creative hub.</h2>
+            <p>
+              The site now explains the major generation paths instead of
+              presenting one generic button. That makes the product easier to
+              understand before checkout.
+            </p>
+          </div>
+          <div className="marketplace-grid">
+            {marketplaceItems.map((item) => (
+              <article className="marketplace-card" key={item.title}>
+                <span>{item.tag}</span>
+                <h3>{item.title}</h3>
+                <p>{item.body}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="conversion-grid">
+          <section className="usecase-panel glass-panel">
+            <div className="section-heading">
+              <p className="eyebrow">Use Cases</p>
+              <h2>Built for creators, operators, and small teams.</h2>
+            </div>
+            <div className="usecase-cloud" aria-label="Supported use cases">
+              {useCases.map((item) => (
+                <span key={item}>{item}</span>
+              ))}
+            </div>
+          </section>
+
+          <section className="faq-panel glass-panel">
+            <div className="section-heading">
+              <p className="eyebrow">FAQ</p>
+              <h2>Launch notes</h2>
+            </div>
+            <div className="faq-stack">
+              {faqItems.map((item) => (
+                <article key={item.question}>
+                  <h3>{item.question}</h3>
+                  <p>{item.answer}</p>
+                </article>
+              ))}
+            </div>
+          </section>
+        </section>
+
+        <section className="final-cta glass-panel">
+          <div>
+            <p className="eyebrow">Ready for activation</p>
+            <h2>Connect provider keys and Shopify variants to turn the demo into a live product.</h2>
+            <p>
+              The product surface, studio flow, credit packs, checkout route,
+              and customer-facing messaging are prepared for the next backend
+              integration pass.
+            </p>
+          </div>
+          <a className="cta-button" href="#studio">
+            Open studio
+            <WandSparkles size={17} />
+          </a>
         </section>
       </section>
     </main>

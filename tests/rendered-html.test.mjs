@@ -32,11 +32,11 @@ test("server-renders the premium AI generation studio", async () => {
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
-  assert.match(html, /<title>AI Video Generation Platform<\/title>/i);
-  assert.match(html, /AOV Studio/);
-  assert.match(html, /Prompt Studio/);
-  assert.match(html, /Credit Packs/);
-  assert.match(html, /Shopify checkout route is built/);
+  assert.match(html, /MotionForge AI/i);
+  assert.match(html, /Imagine it\./);
+  assert.match(html, /Made with imagination\./);
+  assert.match(html, /MotionForge keeps the beginning simple/);
+  assert.match(html, /Create at your pace\./);
   assert.doesNotMatch(html, /Your site is taking shape|SkeletonPreview/);
   assert.doesNotMatch(html, /react-loading-skeleton/);
 });

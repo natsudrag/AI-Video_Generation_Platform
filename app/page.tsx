@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import { StudioShell } from "./studio-shell";
 
 export const metadata: Metadata = {
-  title: "AI Video Generation Platform",
+  title: "MotionForge AI — AI Video Generation Platform",
   description:
-    "Generate premium images and cinematic AI videos with credit packs and Shopify checkout readiness.",
+    "Create cinematic AI video with a media-first studio, premium model selection, and Shopify-ready credits.",
   other: {
     "shopify-integration": "checkout-ready",
   },

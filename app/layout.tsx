@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const siteTitle = "AI Video Generation Platform";
+const siteTitle = "MotionForge AI — AI Video Generation Platform";
 const siteDescription =
-  "A premium AI video and image generation studio with credits and Shopify checkout readiness.";
+  "Create cinematic AI video with a media-first studio, premium model selection, and Shopify-ready credits.";
 
 export async function generateMetadata(): Promise<Metadata> {
   const requestHeaders = await headers();
@@ -36,9 +36,9 @@ export async function generateMetadata(): Promise<Metadata> {
       shortcut: "/favicon.svg",
     },
     openGraph: {
-      title: "AOV Studio",
+      title: "MotionForge AI",
       description: siteDescription,
-      siteName: "AOV Studio",
+      siteName: "MotionForge AI",
       type: "website",
       url: origin,
       images: [
@@ -46,13 +46,13 @@ export async function generateMetadata(): Promise<Metadata> {
           url: previewImage,
           width: 1600,
           height: 900,
-          alt: "AOV Studio AI Video Generation Platform preview",
+          alt: "MotionForge AI video generation platform preview",
         },
       ],
     },
     twitter: {
       card: "summary_large_image",
-      title: "AOV Studio",
+      title: "MotionForge AI",
       description: siteDescription,
       images: [previewImage],
     },
